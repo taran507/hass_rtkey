@@ -1,6 +1,6 @@
 {
     "domain": "rtkey",
-    "name": "rtkey",
+    "name": "Ростелеком Ключ",
     "documentation": "https://github.com/taran507/hass_rtkey",
     "issue_tracker": "https://github.com/taran507/hass_rtkey/issues",
     "codeowners": ["@taran507"],
