@@ -7,6 +7,7 @@
           "login": "Phone number",
           "password": "Password",
           "device_id": "Device ID",
+          "log_level": "Log level",
           "camera_image_refresh_interval": "Camera image refresh interval (sec)"
         }
       }
@@ -19,6 +20,7 @@
           "login": "Phone number",
           "password": "Password",
           "device_id": "Device ID",
+          "log_level": "Log level",
           "camera_image_refresh_interval": "Camera image refresh interval (sec)"
         }
       }

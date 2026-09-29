@@ -24,6 +24,8 @@ CONF_LOGIN = "login"
 CONF_PASSWORD = "password"
 CONF_DEVICE_ID = "device_id"
 CONF_CAMERA_IMAGE_REFRESH_INTERVAL = "camera_image_refresh_interval"
+CONF_LOG_LEVEL = "log_level"
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
 DATA_SCHEMA = {
     vol.Required(CONF_NAME, default="Flat1"): str,
@@ -34,28 +36,41 @@ OPTIONS_SCHEMA = {
     vol.Required(CONF_PASSWORD): str,
     vol.Required(CONF_DEVICE_ID): str,
     vol.Required(CONF_CAMERA_IMAGE_REFRESH_INTERVAL, default=2): int,
+    vol.Required(CONF_LOG_LEVEL, default="INFO"): vol.In(LOG_LEVELS),
 }
 
 _LOGGER = logging.getLogger(DOMAIN)
 _LOGGER.setLevel(logging.INFO)
+_ENTRY_LOG_LEVELS: dict[str, int] = {}
 
 TOKEN_REFRESH_BUFFER = 300
 RATE_LIMIT_DELAY = 120  # each api query will repeated only after this delay
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+    _ENTRY_LOG_LEVELS[config_entry.entry_id] = logging.getLevelName(
+        config_entry.options.get(CONF_LOG_LEVEL, "INFO")
+    )
+    _LOGGER.setLevel(min(_ENTRY_LOG_LEVELS.values()))
     _LOGGER.info("Setting up RTKey entry %s", config_entry.entry_id)
     hass.data[config_entry.entry_id] = {
         "cameras_api": RTKeyCamerasApi(hass, config_entry)
     }
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
+    config_entry.async_on_unload(config_entry.add_update_listener(async_update_options))
     return True
+
+
+async def async_update_options(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
+    await hass.config_entries.async_reload(config_entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     res = await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
     if res:
         del hass.data[config_entry.entry_id]
+        _ENTRY_LOG_LEVELS.pop(config_entry.entry_id, None)
+        _LOGGER.setLevel(min(_ENTRY_LOG_LEVELS.values(), default=logging.INFO))
     return res
 
 
@@ -84,7 +99,7 @@ class RTKeyCamerasApi:
     async def get_cameras_info(self) -> dict:
         async with self.lock:
             if self.cached_cameras_info:
-                _LOGGER.info("Using cached cameras info")
+                _LOGGER.debug("Using cached cameras info")
                 return self.cached_cameras_info
 
             token_type, token = await self.auth.get_token()
@@ -96,8 +111,7 @@ class RTKeyCamerasApi:
                     allow_redirects=True,
                 )
             )
-            _LOGGER.info(r)
-            _LOGGER.info(r.content)
+            _LOGGER.debug("Cameras API returned status %s", r.status_code)
 
             self.cached_cameras_info = json.loads(r.content)
             self.cached_cameras_info_timestamp = int(time.time())
@@ -152,14 +166,14 @@ class RTKeyCamerasApi:
 
         async with self.camera_image_locks[camera_id]:
             if self.cached_camera_images[camera_id]:
-                _LOGGER.info("Using cached image for camera %s", camera_id)
+                _LOGGER.debug("Using cached image for camera %s", camera_id)
                 return self.cached_camera_images[camera_id]
 
             size = "large"
             url = camera_info["screenshot_url_template"].format(
                 timestamp=now, size=size, cdn_token=camera_info["screenshot_token"]
             )
-            _LOGGER.info("Fetching %s", url)
+            _LOGGER.debug("Fetching image for camera %s", camera_id)
             r = await self.hass.async_add_executor_job(
                 functools.partial(
                     requests.get,
@@ -168,7 +182,7 @@ class RTKeyCamerasApi:
                     headers={"X-UTOKEN": camera_info["user_token"]},
                 )
             )
-            _LOGGER.info(r)
+            _LOGGER.debug("Image API returned status %s", r.status_code)
 
             self.cached_camera_images[camera_id] = r.content
             self.camera_image_tasks[camera_id] = asyncio.create_task(
@@ -201,7 +215,7 @@ class RTKeyCamerasApi:
         await asyncio.sleep(ttl)
         async with self.camera_image_locks[camera_id]:
             self.cached_camera_images[camera_id] = None
-        _LOGGER.info("Deleted cached image for camera %s", camera_id)
+        _LOGGER.debug("Deleted cached image for camera %s", camera_id)
 
     def build_device_name(self, device_title) -> str:
         device_name = device_title.lower()
@@ -212,7 +226,7 @@ class RTKeyCamerasApi:
     async def get_intercoms_info(self) -> dict:
         async with self.lock:
             if self.cached_intercoms_info:
-                _LOGGER.info("Using cached intercoms info")
+                _LOGGER.debug("Using cached intercoms info")
                 return self.cached_intercoms_info
 
             token_type, token = await self.auth.get_token()
@@ -224,8 +238,7 @@ class RTKeyCamerasApi:
                     allow_redirects=True,
                 )
             )
-            _LOGGER.info(r)
-            _LOGGER.info(r.content)
+            _LOGGER.debug("Intercoms API returned status %s", r.status_code)
 
             self.cached_intercoms_info = json.loads(r.content)
             self.cached_intercoms_info_timestamp = int(time.time())
@@ -235,7 +248,7 @@ class RTKeyCamerasApi:
     async def open_intercom(self, intercom_id) -> None:
         async with self.lock:
             url = f"https://household.key.rt.ru/api/v2/app/devices/{intercom_id}/open"
-            _LOGGER.info("Fetching %s", url)
+            _LOGGER.debug("Opening intercom %s", intercom_id)
             token_type, token = await self.auth.get_token()
             r = await self.hass.async_add_executor_job(
                 functools.partial(
@@ -245,4 +258,4 @@ class RTKeyCamerasApi:
                     headers={"Authorization": f"{token_type} {token}"},
                 )
             )
-            _LOGGER.info(r)
+            _LOGGER.debug("Open intercom API returned status %s", r.status_code)
