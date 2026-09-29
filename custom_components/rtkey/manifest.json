@@ -4,7 +4,7 @@
     "documentation": "https://github.com/taran507/hass_rtkey",
     "issue_tracker": "https://github.com/taran507/hass_rtkey/issues",
     "codeowners": ["@taran507"],
-    "version": "0.0.2",
+    "version": "0.0.3",
     "requirements": ["transliterate", "pyjwt"],
     "config_flow": true
 }
