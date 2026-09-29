@@ -3,7 +3,7 @@ import functools
 import json
 import logging
 import time
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import jwt
 import requests
@@ -193,9 +193,17 @@ class RTKeyCamerasApi:
         if not camera_info:
             return None
 
-        camera_netloc = urlparse(camera_info["streamer_url"]).netloc
-        streamer_token = camera_info["streamer_token"]
-        return f"https://{camera_netloc}/stream/{camera_id}/live.mp4?mp4-fragment-length=0.5&mp4-use-speed=0&mp4-afiller=1&token={streamer_token}"
+        stream_url = urlparse(camera_info["streamer_url"])
+        query = dict(parse_qsl(stream_url.query))
+        query.update(
+            {
+                "mp4-fragment-length": "0.5",
+                "mp4-use-speed": "0",
+                "mp4-afiller": "1",
+                "token": camera_info["streamer_token"],
+            }
+        )
+        return urlunparse(stream_url._replace(query=urlencode(query)))
 
     async def clear_cached_camera_image(self, camera_id: str, ttl: int) -> None:
         await asyncio.sleep(ttl)
