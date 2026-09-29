@@ -4,7 +4,9 @@
       "user": {
         "data": {
           "name": "Entry name (should be uniq, i.e myflat or flat123)",
-          "token": "Access token",
+          "login": "Phone number",
+          "password": "Password",
+          "device_id": "Device ID",
           "camera_image_refresh_interval": "Camera image refresh interval (sec)"
         }
       }
@@ -14,7 +16,9 @@
     "step": {
       "init": {
         "data": {
-          "token": "Access token",
+          "login": "Phone number",
+          "password": "Password",
+          "device_id": "Device ID",
           "camera_image_refresh_interval": "Camera image refresh interval (sec)"
         }
       }
